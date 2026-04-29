@@ -30,11 +30,13 @@ targets:
       base:
         INFOPLIST_FILE: NekoPyonNews/Info.plist
         PRODUCT_NAME: NekoPyonNews
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
       path: NekoPyonNews/Info.plist
       properties:
         CFBundleName: ねこぴょんニュース
         CFBundleDisplayName: ねこぴょんニュース
+        CFBundleIconName: AppIcon
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "2"
         LSRequiresIPhoneOS: true
