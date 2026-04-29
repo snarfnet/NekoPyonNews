@@ -3,7 +3,6 @@ options:
   bundleIdPrefix: com.tokyonasu
   deploymentTarget:
     iOS: "18.0"
-  xcodeVersion: "16.0"
 
 packages:
   GoogleMobileAds:
@@ -50,7 +49,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
-        GADApplicationIdentifier: "PLACEHOLDER_ADMOB_APP_ID"
+        GADApplicationIdentifier: "ca-app-pub-9404799280370656~2232407124"
         SKAdNetworkItems:
           - SKAdNetworkIdentifier: cstr6suwn9.skadnetwork
           - SKAdNetworkIdentifier: 4fzdc2evr5.skadnetwork
