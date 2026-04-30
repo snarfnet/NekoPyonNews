@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"ls \\\"G:/MacMiniBackup/FusuiRoban/\\\" && cd \\\"G:/MacMiniBackup/FusuiRoban\\\" && git init && git remote add origin https://github.com/snarfnet/FusuiRoban.git && git add . && git commit -m \\\"Ad...",
+  "error": "Exit code 3\nExportOptions.plist\nFusuiRoban\nFusuiRoban.xcodeproj\nbuild\nexports\nproject.yml\nscripts\nReinitialized existing Git repository in G:/MacMiniBackup/FusuiRoban/.git/\nerror: remote origin already exists.",
+  "timestamp": "2026-04-29T11:59:56.998Z",
+  "retry_count": 3
+}
