@@ -1,8 +1,8 @@
 import SwiftUI
 import SafariServices
 import Translation
+import AVFoundation
 
-// TODO: AdMob IDが用意できたら差し替え
 private let kTopBannerID    = "ca-app-pub-3940256099942544/2934735716"  // テスト用
 private let kBottomBannerID = "ca-app-pub-3940256099942544/2934735716"  // テスト用
 
@@ -20,10 +20,18 @@ enum FontSizeOption: String, CaseIterable {
     }
 }
 
+enum Tab: String {
+    case news = "ニュース"
+    case bookmarks = "ブックマーク"
+}
+
 struct ContentView: View {
     @StateObject private var vm = NewsViewModel()
+    @StateObject private var bookmarkManager = BookmarkManager()
+    @StateObject private var speechManager = SpeechManager()
     @AppStorage("fontSize") private var fontSizeRaw: String = FontSizeOption.medium.rawValue
     @State private var translationConfig: TranslationSession.Configuration?
+    @State private var selectedTab: Tab = .news
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var fontSize: FontSizeOption { FontSizeOption(rawValue: fontSizeRaw) ?? .medium }
@@ -36,58 +44,13 @@ struct ContentView: View {
 
             NavigationStack {
                 Group {
-                    if vm.isLoading && vm.sections.isEmpty {
-                        ProgressView("読み込み中…")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if vm.sections.isEmpty {
-                        VStack(spacing: 16) {
-                            Text("記事が見つかりませんでした")
-                                .foregroundStyle(.secondary)
-                            Button("再読み込み") { Task { await vm.fetch() } }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if selectedTab == .news {
+                        newsListView
                     } else {
-                        List {
-                            Section {
-                                GeometryReader { geo in
-                                    Group {
-                                        if UIImage(named: "CatHeader") != nil {
-                                            Image("CatHeader")
-                                                .resizable()
-                                                .scaledToFill()
-                                        } else {
-                                            CatHeaderPlaceholder()
-                                        }
-                                    }
-                                    .frame(width: geo.size.width)
-                                    .offset(y: 8)
-                                }
-                                .frame(height: headerHeight)
-                                .clipped()
-                                .listRowInsets(EdgeInsets())
-                                .listRowSeparator(.hidden)
-                            }
-
-                            ForEach(vm.sections, id: \.date) { section in
-                                Section(header: Text(section.date)
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
-                                ) {
-                                    ForEach(section.items) { item in
-                                        NewsRow(item: item, fontSize: fontSize)
-                                    }
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .refreshable {
-                            await vm.fetch()
-                            translationConfig?.invalidate()
-                        }
+                        bookmarkListView
                     }
                 }
-                .navigationTitle("ねこぴょんニュース")
+                .navigationTitle(selectedTab == .news ? "ねこぴょんニュース" : "ブックマーク")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -99,8 +62,27 @@ struct ContentView: View {
                         .pickerStyle(.segmented)
                         .frame(width: 90)
                     }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        if speechManager.isSpeaking {
+                            Button { speechManager.stop() } label: {
+                                Image(systemName: "speaker.slash.fill")
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    }
                 }
             }
+
+            HStack {
+                TabButton(title: "ニュース", icon: "newspaper.fill", isSelected: selectedTab == .news) {
+                    selectedTab = .news
+                }
+                TabButton(title: "ブックマーク", icon: "bookmark.fill", isSelected: selectedTab == .bookmarks) {
+                    selectedTab = .bookmarks
+                }
+            }
+            .padding(.vertical, 8)
+            .background(Color(UIColor.systemGroupedBackground))
 
             BannerAdView(adUnitID: kBottomBannerID)
                 .frame(height: 50)
@@ -117,6 +99,81 @@ struct ContentView: View {
         }
         .translationTask(translationConfig) { session in
             await vm.translateItems(using: session)
+        }
+    }
+
+    @ViewBuilder
+    private var newsListView: some View {
+        if vm.isLoading && vm.sections.isEmpty {
+            ProgressView("読み込み中…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if vm.sections.isEmpty {
+            VStack(spacing: 16) {
+                Text("記事が見つかりませんでした")
+                    .foregroundStyle(.secondary)
+                Button("再読み込み") { Task { await vm.fetch() } }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                Section {
+                    GeometryReader { geo in
+                        Group {
+                            if UIImage(named: "CatHeader") != nil {
+                                Image("CatHeader")
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                CatHeaderPlaceholder()
+                            }
+                        }
+                        .frame(width: geo.size.width)
+                        .offset(y: 8)
+                    }
+                    .frame(height: headerHeight)
+                    .clipped()
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                }
+
+                ForEach(vm.sections, id: \.date) { section in
+                    Section(header: Text(section.date)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    ) {
+                        ForEach(section.items) { item in
+                            NewsRow(item: item, fontSize: fontSize, bookmarkManager: bookmarkManager, speechManager: speechManager)
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .refreshable {
+                await vm.fetch()
+                translationConfig?.invalidate()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var bookmarkListView: some View {
+        if bookmarkManager.bookmarks.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "bookmark")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.secondary)
+                Text("保存した記事はありません")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                ForEach(bookmarkManager.bookmarks) { item in
+                    NewsRow(item: item, fontSize: fontSize, bookmarkManager: bookmarkManager, speechManager: speechManager)
+                }
+            }
+            .listStyle(.plain)
         }
     }
 }
@@ -142,37 +199,84 @@ struct CatHeaderPlaceholder: View {
     }
 }
 
+struct TabButton: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                Text(title)
+                    .font(.caption2)
+            }
+            .foregroundStyle(isSelected ? .accentColor : .secondary)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
 struct NewsRow: View {
     let item: NewsItem
     let fontSize: FontSizeOption
+    @ObservedObject var bookmarkManager: BookmarkManager
+    @ObservedObject var speechManager: SpeechManager
     @State private var showSafari = false
 
     var body: some View {
-        Button {
-            showSafari = true
-        } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.displayTitle)
-                    .font(.system(size: fontSize.titleSize))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
-                HStack {
-                    if item.isEnglish && item.translatedTitle == nil {
-                        Image(systemName: "globe")
+        HStack(alignment: .top, spacing: 8) {
+            Button {
+                showSafari = true
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.displayTitle)
+                        .font(.system(size: fontSize.titleSize))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                    HStack {
+                        if item.isEnglish && item.translatedTitle == nil {
+                            Image(systemName: "globe")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(item.source)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    Text(item.source)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            VStack(spacing: 12) {
+                Button {
+                    let text = item.translatedTitle ?? item.title
+                    let isEn = item.isEnglish && item.translatedTitle == nil
+                    speechManager.speak(text, itemID: item.id, isEnglish: isEn)
+                } label: {
+                    Image(systemName: speechManager.currentItemID == item.id ? "speaker.wave.2.fill" : "speaker.wave.2")
+                        .font(.system(size: 14))
+                        .foregroundStyle(speechManager.currentItemID == item.id ? .blue : .secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    bookmarkManager.toggle(item)
+                } label: {
+                    Image(systemName: bookmarkManager.isBookmarked(item) ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 14))
+                        .foregroundStyle(bookmarkManager.isBookmarked(item) ? .orange : .secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 4)
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 4)
         .sheet(isPresented: $showSafari) {
             if let url = item.url {
                 SafariView(url: url)
