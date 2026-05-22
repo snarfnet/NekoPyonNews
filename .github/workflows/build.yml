@@ -59,8 +59,10 @@ jobs:
 
     - name: Upload IPA
       run: |
+        IPA=$(find build/export -name "*.ipa" | head -1)
+        echo "Found IPA: $IPA"
         xcrun altool --upload-app \
-          -f build/export/NekoPyonNews.ipa \
+          -f "$IPA" \
           -t ios \
           --apiKey WDXGY9WX55 \
           --apiIssuer 2be0734f-943a-4d61-9dc9-5d9045c46fec
